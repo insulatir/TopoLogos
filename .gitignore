@@ -1,0 +1,21 @@
+# .gitignore 내용
+
+# 빌드 폴더 및 실행 파일 제외
+build/
+bin/
+out/
+*.exe
+*.o
+*.a
+*.so
+*.dylib
+
+# IDE 설정 파일 제외 (VSCode 등)
+.vscode/
+.idea/
+.DS_Store
+
+# 자동 생성되는 파일 제외 (중요!)
+# knowledge.hpp는 컴파일러가 매번 새로 만드는 파일이므로 제외하는 것이 정석입니다.
+knowledge.hppbert_nli.onnx
+bert_nli.onnx

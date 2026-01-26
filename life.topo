@@ -1,0 +1,91 @@
+// life.topo
+// TopoLogos Project: Act 2 - structural_existentialism
+// The Laws of Verification: Physics, Psychology, Structure
+
+meta {
+    version: "2.0.0"
+    project: "TopoLogos"
+    philosophy: "Pruning over Accumulation" // 성장은 더하는 것이 아니라 소거하는 것
+}
+
+// --------------------------------------------------------
+// Layer 1: PHYSICS (The Realm of Hard Constraints)
+// 엔트로피와 에너지 보존 법칙에 위배되는 정보는 즉시 'Scam'으로 간주한다.
+// --------------------------------------------------------
+domain Physics {
+    axiom Thermodynamics {
+        // 세상에 공짜 점심은 없다.
+        // 입력 에너지보다 출력 보상이 비정상적으로 크면 사기다.
+        rule NoFreeLunch(input_energy: float, promised_reward: float) {
+            threshold: 1000.0; // 허용 가능한 레버리지 비율
+            condition: promised_reward <= (input_energy * threshold);
+            failure_msg: "Violation of Thermodynamics: Infinite Upside detected.";
+        }
+    }
+
+    axiom Verifiability {
+        // 검증 불가능한 모호한 단어는 높은 엔트로피(High-Entropy)를 가진다.
+        rule EntropyCheck(text_clarity_score: float) {
+            threshold: 0.7;
+            condition: text_clarity_score >= threshold;
+            failure_msg: "High Entropy Detected: Vague terminology used to hide lack of substance.";
+        }
+    }
+}
+
+// --------------------------------------------------------
+// Layer 2: PSYCHOLOGY (The Realm of Intent & Bias)
+// 사용자의 인지 편향을 공격하거나, 조급함을 유발하는지 검사한다.
+// --------------------------------------------------------
+domain Psychology {
+    axiom Intent {
+        // 공포(FOMO)나 긴급성을 조장하는 패턴을 감지한다.
+        rule UrgencyTrap(urgency_keywords_count: int, call_to_action: bool) {
+            max_allowed: 2;
+            condition: !(urgency_keywords_count > max_allowed && call_to_action == true);
+            failure_msg: "Predatory Intent: Manufactured urgency detected.";
+        }
+    }
+
+    axiom Bias {
+        // "모든", "무조건", "절대" 같은 확증 편향적 언어를 필터링한다.
+        rule AbsolutismFilter(absolute_terms_count: int) {
+            max_allowed: 1;
+            condition: absolute_terms_count <= max_allowed;
+            failure_msg: "Cognitive Bias: Over-generalization and absolutism.";
+        }
+    }
+}
+
+// --------------------------------------------------------
+// Layer 3: STRUCTURE (The Realm of Fragility)
+// 시스템적 위험, 단일 실패 지점(SPOF), 과도한 의존성을 검사한다.
+// --------------------------------------------------------
+domain Structure {
+    axiom Robustness {
+        // 정보의 근거가 단 하나의 출처(SPOF)에만 의존하는가?
+        rule CentralizationRisk(dependency_sources: list<string>) {
+            min_sources: 3; // 진실의 삼각측량을 위해 최소 3개 소스 필요
+            condition: length(dependency_sources) >= min_sources;
+            failure_msg: "Structural Fragility: Single Point of Failure (SPOF) detected.";
+        }
+    }
+
+    axiom Circularity {
+        // 순환 참조 검사 (A는 B가 맞다 하고, B는 A가 맞다 하는 경우)
+        rule CircularReasoning(logic_path: graph) {
+            condition: !graph_has_cycle(logic_path);
+            failure_msg: "Logical Fallacy: Circular reasoning detected.";
+        }
+    }
+}
+
+// --------------------------------------------------------
+// Global Pruning Strategy (Reverse Skill Tree)
+// 위반 사항 발생 시 처리 방침
+// --------------------------------------------------------
+strategy Pruning {
+    on_violation: "PRUNE_IMMEDIATELY"; // 타협하지 않고 가지를 쳐낸다.
+    bullshit_threshold: 0.8;           // 3개 레이어 중 80% 이상 통과 못하면 폐기
+    output_format: "binary_graph";     // C++ 엔진을 위한 바이너리 포맷
+}
