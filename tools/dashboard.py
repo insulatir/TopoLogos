@@ -143,31 +143,51 @@ HTML_TEMPLATE = """
 def index():
     return render_template_string(HTML_TEMPLATE)
 
+# tools/dashboard.py 내부의 get_graph 함수 수정
+
 @app.route('/api/graph')
 def get_graph():
     conn = get_db_connection()
     
-    # Nodes
+    # 1. 정식 노드 가져오기
     nodes_db = conn.execute('SELECT id, type, score, payload FROM nodes').fetchall()
     nodes = []
+    existing_ids = set() # 이미 존재하는 ID 기록용
+    
     for row in nodes_db:
         score = row['score']
-        # 색상 로직: 점수가 높으면 파랑, 낮으면 빨강
         color = "#2196F3" if score >= 80 else ("#FF9800" if score >= 50 else "#F44336")
         
         nodes.append({
             "id": row['id'],
-            "label": row['id'], # 혹은 짧은 제목
+            "label": row['id'],
             "group": row['type'],
             "score": score,
             "color": color,
-            "payload": row['payload'] # 상세 보기를 위해 전체 데이터 전송
+            "payload": row['payload']
         })
+        existing_ids.add(row['id'])
 
-    # Edges
+    # 2. 엣지 가져오기 + [핵심] 없는 노드(외부 출처) 생성하기
     edges_db = conn.execute('SELECT source, target, relation FROM edges').fetchall()
     edges = []
+    
     for row in edges_db:
+        target_id = row['target']
+        
+        # [Fix] 타겟 노드가 정식 노드 리스트에 없다면 "외부 출처(External)"로 임시 생성
+        if target_id not in existing_ids:
+            nodes.append({
+                "id": target_id,
+                "label": target_id,
+                "group": "ExternalSource", # 그룹 구분
+                "score": 0,
+                "color": "#e0e0e0",        # 회색으로 표시
+                "shape": "box",            # 모양도 다르게 (네모)
+                "payload": "{}"            # 빈 데이터
+            })
+            existing_ids.add(target_id) # 중복 생성 방지
+
         edges.append({
             "from": row['source'],
             "to": row['target'],

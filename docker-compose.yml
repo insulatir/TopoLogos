@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  # [Service 1] The Senses: 끊임없이 뉴스를 읽어오는 광부
+  miner:
+    build: .
+    container_name: topologos-miner
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY} # 호스트의 환경변수 사용
+    volumes:
+      - ./data:/app/data # 데이터 영구 저장 및 공유
+    # TechCrunch 피드를 5분(300초)마다 순찰
+    command: python3 tools/miner/miner.py --daemon --rss "https://techcrunch.com/feed/" --interval 300
+    restart: unless-stopped
+
+  # [Service 2] The Brain: 주기적으로 깨어나 진실을 판별하는 엔진
+  engine:
+    build: .
+    container_name: topologos-engine
+    volumes:
+      - ./data:/app/data
+    # 1분마다 C++ 엔진을 실행하는 무한 루프 스크립트
+    command: bash -c "while true; do ./build/TopoLogos config/life.topo; echo '[Engine] Cycle complete. Sleeping...'; sleep 60; done"
+    restart: unless-stopped
+
+  # [Service 3] The Self: 내면을 보여주는 웹 대시보드
+  dashboard:
+    build: .
+    container_name: topologos-dashboard
+    ports:
+      - "5000:5000" # 호스트의 5000포트와 연결
+    volumes:
+      - ./data:/app/data
+    command: python3 tools/dashboard.py
+    restart: unless-stopped
