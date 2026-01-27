@@ -89,20 +89,19 @@ class TruthMiner:
         
         print(f"[*] Mining Truth ({depth}/{max_depth}): {source_id}")
         
-        # [수정] OpenAI 대신 로컬 analyze_content 사용
         content = self.analyze_content(raw_text)
         if not content: return
 
         try:
-            analysis_result = json.loads(content)
-
-            # Mistral이 준 답변에서 JSON만 쏙 뽑아내는 정규식
+            # 1. 정규식에 괄호 () 를 추가하여 그룹 1을 만듭니다.
             import re
-            json_match = re.search(r'\{.*\}', content, re.DOTALL)
+            json_match = re.search(r'(\{.*\})', content, re.DOTALL)
+            
             if json_match:
+                # 괄호로 감싼 부분(그룹 1)을 추출합니다.
                 analysis_result = json.loads(json_match.group(1))
             else:
-                # JSON 형식이 아예 없으면 원본이라도 파싱 시도
+                # 정규식 매칭이 안 되면 전체 내용으로 시도합니다.
                 analysis_result = json.loads(content)
             
             topo_data = {
@@ -115,7 +114,8 @@ class TruthMiner:
                 "attributes": analysis_result
             }
             
-            output_dir = os.path.join(os.path.dirname(__file__), "../../data/inbox")
+            # 경로 설정: Docker 환경에 맞게 조정 (data/inbox)
+            output_dir = "data/inbox" 
             os.makedirs(output_dir, exist_ok=True)
             filename = os.path.join(output_dir, f"{safe_id}.topo.json")
             
@@ -135,9 +135,9 @@ class TruthMiner:
                         self.mine(child_text, child_id, depth + 1, max_depth)    
 
         except Exception as e:
-            print(f"[!] JSON 추출 실패: {e}")
-            # 분석에 실패해도 최소한의 정보는 남김
-            analysis_result = {"summary": "Analysis failed", "score": 0}
+            print(f"[!] 데이터 처리 실패: {e}")
+            # 에러 로그를 좀 더 자세히 보고 싶다면 아래 주석 해제
+            # import traceback; traceback.print_exc()
 
     def scan_rss(self, rss_url: str):
         print(f"\n[Scheduler] Scanning Feed: {rss_url}")
