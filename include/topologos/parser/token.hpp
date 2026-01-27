@@ -1,35 +1,35 @@
 #pragma once
 #include <string>
-#include <format> // C++20 formatting
 
 namespace topologos::parser {
 
     enum class TokenType {
-        // Keywords
-        KW_COMMUNITY, KW_CONCEPT,
-
-        // Symbols
-        LBRACE, RBRACE, SEMICOLON,
-        ARROW,          // ->
-        WAVE,           // ~>
-        COLON_COLON,    // ::
-
-        // Literals
-        IDENTIFIER,     // User defined names
-
-        // Control
-        END_OF_FILE,
-        ERROR
+        // [기존] 구조 정의용
+        COMMUNITY, CONCEPT, ARROW,
+        
+        // [New] 법칙 정의용 (life.topo)
+        DOMAIN, AXIOM, RULE, 
+        THRESHOLD, CONDITION, FAILURE_MSG,
+        
+        // [New] 자료형 및 값
+        TYPE_FLOAT, TYPE_INT, TYPE_BOOL, TYPE_STRING, TYPE_LIST,
+        TRUE, FALSE, NUMBER, STRING_LITERAL,
+        
+        // [New] 연산자 및 구두점
+        PLUS, MINUS, STAR, SLASH,
+        EQUAL, EQUAL_EQUAL, BANG_EQUAL, // = , == , !=
+        LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, // <, <=, >, >=
+        AND, OR, NOT, // &&, ||, !
+        
+        LPAREN, RPAREN, LBRACE, RBRACE, LBRACKET, RBRACKET, // (), {}, []
+        COMMA, COLON, SEMICOLON, DOT,
+        
+        IDENTIFIER, END_OF_FILE
     };
 
     struct Token {
         TokenType type;
-        std::string lexeme; // 실제 텍스트 ("Community", "CPU" 등)
-        int line;           // 에러 리포팅용 줄 번호
-
-        // 디버깅을 위한 출력 함수
-        std::string debug_string() const {
-            return "Line " + std::to_string(line) + ":Type[" + std::to_string((int)type) + "] '" + lexeme + "'";
-        }
+        std::string value;
+        int line;
     };
 }

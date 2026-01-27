@@ -1,9 +1,8 @@
-// include/topologos/storage/knowledge_graph.hpp
 #pragma once
 #include <string>
 #include <vector>
-#include <fstream>
 #include <iostream>
+#include <sqlite3.h> // [변경] JSON 대신 SQLite
 #include <nlohmann/json.hpp>
 
 namespace topologos::storage {
@@ -13,82 +12,64 @@ namespace topologos::storage {
     class KnowledgeGraph {
     public:
         explicit KnowledgeGraph(const std::string& db_path) : db_path_(db_path) {
-            load();
+            open_db();
+            init_schema();
         }
 
-        // include/topologos/storage/knowledge_graph.hpp
+        ~KnowledgeGraph() {
+            if (db_) sqlite3_close(db_);
+        }
 
         void add_verified_node(const json& data, double score) {
             std::string id = data["meta"]["source_id"];
-            
-            // 1. 노드 갱신 (덮어쓰기)
-            json node = {
-                {"id", id},
-                {"score", score},
-                {"timestamp", data["meta"]["timestamp"]},
-                {"type", "VerifiedFact"},
-                {"attributes", data["attributes"]}
-            };
-            db_["nodes"][id] = node;
+            std::string type = "VerifiedFact";
+            std::string payload = data.dump(); 
 
-            // 2. [FIX] 엣지 중복 방지 로직
-            // 기존 엣지 목록에서 "현재 처리 중인 ID"가 출발지(from)인 엣지를 모두 제거한 새 목록을 만듭니다.
-            json new_edges = json::array();
-            if (db_.contains("edges") && db_["edges"].is_array()) {
-                for (const auto& edge : db_["edges"]) {
-                    // 'from'이 현재 id와 다른 것들만 유지 (즉, 내 엣지는 다 지움)
-                    if (edge["from"] != id) {
-                        new_edges.push_back(edge);
-                    }
+            // 1. Node 저장 (Upsert)
+            std::string sql_node = "INSERT OR REPLACE INTO nodes (id, type, score, payload) VALUES (?, ?, ?, ?);";
+            execute_prepared(sql_node, {id, type, std::to_string(score), payload});
+
+            // 2. 기존 Edge 삭제 (갱신용)
+            std::string sql_del = "DELETE FROM edges WHERE source = ?;";
+            execute_prepared(sql_del, {id});
+
+            // 3. Edge 저장
+            if (data["attributes"]["structure"].contains("dependency_sources")) {
+                auto sources = data["attributes"]["structure"]["dependency_sources"];
+                std::string sql_edge = "INSERT INTO edges (source, target, relation) VALUES (?, ?, ?);";
+                for (const auto& source : sources) {
+                    execute_prepared(sql_edge, {id, source.get<std::string>(), "DEPENDS_ON"});
                 }
             }
-
-            // 3. 새로운 엣지 추가
-            auto sources = data["attributes"]["structure"]["dependency_sources"];
-            for (const auto& source : sources) {
-                json edge = {
-                    {"from", id},
-                    {"to", source},
-                    {"relation", "DEPENDS_ON"}
-                };
-                new_edges.push_back(edge);
-            }
-            
-            // 엣지 목록 교체
-            db_["edges"] = new_edges;
-            
-            std::cout << "[DB] Assimilated: " << id << " (Edges Updated)" << std::endl;
+            std::cout << "[DB] Assimilated: " << id << " (Stored in SQLite)" << std::endl;
         }
 
-        // 디스크에 저장
-        void save() {
-            std::ofstream f(db_path_);
-            if (f.is_open()) {
-                f << db_.dump(4); // 4칸 들여쓰기 (Pretty Print)
-                std::cout << "[DB] Knowledge persisted to '" << db_path_ << "'" << std::endl;
-            }
-        }
+        // save() 함수는 삭제됨 (SQLite는 자동 저장)
 
     private:
         std::string db_path_;
-        json db_;
+        sqlite3* db_ = nullptr;
 
-        void load() {
-            std::ifstream f(db_path_);
-            if (f.good()) {
-                try {
-                    db_ = json::parse(f);
-                } catch (...) {
-                    db_ = json::object(); // 파일이 깨졌거나 비었으면 초기화
-                    db_["nodes"] = json::object();
-                    db_["edges"] = json::array();
-                }
-            } else {
-                // 초기 DB 구조
-                db_["nodes"] = json::object();
-                db_["edges"] = json::array();
+        void open_db() {
+            sqlite3_open(db_path_.c_str(), &db_);
+        }
+
+        void init_schema() {
+            const char* sql = 
+                "CREATE TABLE IF NOT EXISTS nodes (id TEXT PRIMARY KEY, type TEXT, score REAL, payload TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);"
+                "CREATE TABLE IF NOT EXISTS edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, relation TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);";
+            char* err = 0;
+            sqlite3_exec(db_, sql, 0, 0, &err);
+        }
+
+        void execute_prepared(const std::string& sql, const std::vector<std::string>& params) {
+            sqlite3_stmt* stmt;
+            sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, 0);
+            for (size_t i = 0; i < params.size(); i++) {
+                sqlite3_bind_text(stmt, i + 1, params[i].c_str(), -1, SQLITE_TRANSIENT);
             }
+            sqlite3_step(stmt);
+            sqlite3_finalize(stmt);
         }
     };
-
-} // namespace topologos::storage
+}

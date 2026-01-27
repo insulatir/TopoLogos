@@ -33,10 +33,9 @@ int main(int argc, char* argv[]) {
     std::string inbox_path = resolve_path("data/inbox");
     
     // [FIX] DB 경로는 '폴더'를 기준으로 잡아야 함
-    std::string db_path = "data/topo_db.json";
+    std::string db_path = "data/topo_db.sqlite"; 
     if (fs::exists("../data")) { 
-        // build 폴더에서 실행 중이라면 상위 폴더의 data에 저장
-        db_path = "../data/topo_db.json"; 
+        db_path = "../data/topo_db.sqlite"; 
     }
     // [Act 1] AI Engine (Optional)
     topologos::ai::NLIEngine* engine_ptr = nullptr;
@@ -60,7 +59,6 @@ int main(int argc, char* argv[]) {
     
     topologos::verification::BullshitDetector detector(rule_file);
     topologos::storage::KnowledgeGraph db(db_path); // [New] DB 로드
-    bool dirty = false; // 변경 사항 체크
 
     if (fs::exists(inbox_path)) {
         for (const auto& entry : fs::directory_iterator(inbox_path)) {
@@ -74,7 +72,6 @@ int main(int argc, char* argv[]) {
                     if (verdict.is_truth) {
                         std::cout << "[TRUTH] (Score: " << verdict.integrity_score << ") -> Saving.\n";
                         db.add_verified_node(data, verdict.integrity_score);
-                        dirty = true;
                     } else {
                         // [수정] 단순히 Discarded만 출력하지 말고 이유를 보여줌
                         std::cout << "[SCAM] Discarded (Score: " << verdict.integrity_score << ")\n";
@@ -87,13 +84,6 @@ int main(int argc, char* argv[]) {
                 }
             }
         }
-        
-        if (dirty) {
-            db.save(); // 변경사항이 있으면 파일에 기록
-        } else {
-            std::cout << "[Info] No new truths found to save.\n";
-        }
-
     } else {
         std::cout << "[Info] Inbox directory not found.\n";
     }
@@ -103,11 +93,14 @@ int main(int argc, char* argv[]) {
     // ---------------------------------------------------------
     std::cout << "\n=== [Phase 2] Generating Knowledge Graph (Visualization) ===\n";
     
-    // 파서가 이해할 수 있는 문법 (-> 사용)
-    std::string source = "Community TopoLogos { \n"
-                         "  Concept Truth; Concept Scam; Concept Filter; \n"
-                         "  Filter -> Truth; Filter -> Scam; \n" 
-                         "}";
+    // [FIX] 문법을 Act 2(Domain/Axiom) 형식으로 변경해야 파서가 이해합니다.
+    std::string source = 
+        "domain TopoLogos { \n"
+        "  axiom FilterSystem { \n"
+        "    rule TruthCheck(score: float) { condition: score > 80; } \n"
+        "    rule ScamCheck(score: float)  { condition: score < 50; } \n"
+        "  } \n"
+        "}";
 
     topologos::parser::Lexer lexer(source);
     auto tokens = lexer.tokenize();

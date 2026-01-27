@@ -6,73 +6,82 @@
 
 namespace topologos::ast {
 
-    // 모든 노드의 부모
     struct Node {
         virtual ~Node() = default;
-        // 디버깅용: 자신의 정보를 출력하는 함수
         virtual void print(int indent = 0) const = 0;
-        
         void print_indent(int indent) const {
             for(int i=0; i<indent; ++i) std::cout << "  ";
         }
     };
 
-    // 1. 개념 (Concept): "CPU", "Salary" 등
-    struct Concept : Node {
+    struct Expr : Node {};
+
+    struct Literal : Expr {
+        std::string value;
+        Literal(std::string v) : value(std::move(v)) {}
+        void print(int indent = 0) const override { std::cout << value; }
+    };
+
+    struct Variable : Expr {
         std::string name;
+        Variable(std::string n) : name(std::move(n)) {}
+        void print(int indent = 0) const override { std::cout << name; }
+    };
 
-        Concept(std::string n) : name(std::move(n)) {}
-
+    // [New] 함수 호출 (length(...) 등)
+    struct CallExpr : Expr {
+        std::string callee;
+        std::vector<std::shared_ptr<Expr>> arguments;
+        CallExpr(std::string c, std::vector<std::shared_ptr<Expr>> args)
+            : callee(std::move(c)), arguments(std::move(args)) {}
         void print(int indent = 0) const override {
-            print_indent(indent);
-            std::cout << "[Concept] " << name << "\n";
+             std::cout << callee << "("; 
+             for(size_t i=0; i<arguments.size(); ++i) {
+                 arguments[i]->print();
+                 if(i < arguments.size()-1) std::cout << ", ";
+             }
+             std::cout << ")";
         }
     };
 
-    // 2. 관계 (Relation): A -> B 또는 A ~> B
-    enum class Strength { STRONG, WEAK };
-
-    struct Relation : Node {
-        std::string source;
-        std::string target;
-        Strength strength;
-
-        Relation(std::string s, std::string t, Strength str)
-            : source(std::move(s)), target(std::move(t)), strength(str) {}
-
+    struct BinaryExpr : Expr {
+        std::shared_ptr<Expr> left;
+        std::string op;
+        std::shared_ptr<Expr> right;
+        BinaryExpr(std::shared_ptr<Expr> l, std::string o, std::shared_ptr<Expr> r)
+            : left(std::move(l)), op(std::move(o)), right(std::move(r)) {}
         void print(int indent = 0) const override {
-            print_indent(indent);
-            std::cout << "[Relation] " << source 
-                      << (strength == Strength::STRONG ? " -> " : " ~> ")
-                      << target << "\n";
+            std::cout << "("; left->print(); std::cout << " " << op << " "; right->print(); std::cout << ")";
         }
     };
 
-    // 3. 커뮤니티 (Community): 개념과 관계의 집합
-    struct Community : Node {
+    struct RuleNode : Node {
         std::string name;
-        std::vector<std::shared_ptr<Concept>> concepts;
-        std::vector<std::shared_ptr<Relation>> relations;
+        std::vector<std::pair<std::string, std::string>> params;
+        std::vector<std::pair<std::string, std::shared_ptr<Expr>>> constants;
+        std::shared_ptr<Expr> condition;
+        std::string failure_msg;
 
-        Community(std::string n) : name(std::move(n)) {}
-
-        void print(int indent = 0) const override {
-            print_indent(indent);
-            std::cout << "[Community] " << name << " {\n";
-            for (const auto& c : concepts) c->print(indent + 1);
-            for (const auto& r : relations) r->print(indent + 1);
-            print_indent(indent);
-            std::cout << "}\n";
-        }
+        RuleNode(std::string n) : name(std::move(n)) {}
+        void print(int indent = 0) const override { /* 생략 (기존 유지) */ }
     };
 
-    // 4. 전체 프로그램 (루트 노드)
-    struct Program : Node {
-        std::vector<std::shared_ptr<Node>> statements; // Community 또는 Relation
+    struct AxiomNode : Node {
+        std::string name;
+        std::vector<std::shared_ptr<RuleNode>> rules;
+        AxiomNode(std::string n) : name(std::move(n)) {}
+        void print(int indent = 0) const override { /* 생략 */ }
+    };
 
-        void print(int indent = 0) const override {
-            std::cout << "=== AST Structure ===\n";
-            for (const auto& stmt : statements) stmt->print(indent);
-        }
+    struct DomainNode : Node {
+        std::string name;
+        std::vector<std::shared_ptr<AxiomNode>> axioms;
+        DomainNode(std::string n) : name(std::move(n)) {}
+        void print(int indent = 0) const override { /* 생략 */ }
+    };
+
+    struct ProgramNode : Node {
+        std::vector<std::shared_ptr<DomainNode>> domains;
+        void print(int indent = 0) const override { /* 생략 */ }
     };
 }

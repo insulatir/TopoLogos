@@ -2,34 +2,46 @@
 #include <vector>
 #include <memory>
 #include <string>
-#include "lexer.hpp"
-#include "ast.hpp"
+#include "token.hpp"
+#include "../ast/node.hpp" // [중요] AST 정의 포함
 
 namespace topologos::parser {
 
     class Parser {
     public:
-        // 생성자: 토큰 목록을 받음
         explicit Parser(std::vector<Token> tokens);
 
-        // 메인 함수: 파싱 결과를 AST(ProgramNode)로 반환
-        std::unique_ptr<ProgramNode> parse();
+        // 반환 타입을 shared_ptr<ast::ProgramNode>로 통일
+        std::shared_ptr<topologos::ast::ProgramNode> parse();
 
     private:
         std::vector<Token> tokens_;
-        size_t current_ = 0;
+        int current_ = 0;
 
-        // --- 토큰 탐색 헬퍼 함수들 ---
-        bool is_at_end() const;
-        const Token& peek() const;
-        const Token& previous() const;
-        const Token& advance();
-        bool check(TokenType type) const;
+        // --- Parsing Methods ---
+        std::shared_ptr<topologos::ast::DomainNode> parse_domain();
+        std::shared_ptr<topologos::ast::AxiomNode> parse_axiom();
+        std::shared_ptr<topologos::ast::RuleNode> parse_rule();
+        
+        // Expression Parsing
+        std::shared_ptr<topologos::ast::Expr> parse_expression();
+        std::shared_ptr<topologos::ast::Expr> parse_logic_or();
+        std::shared_ptr<topologos::ast::Expr> parse_logic_and();
+        std::shared_ptr<topologos::ast::Expr> parse_equality();
+        std::shared_ptr<topologos::ast::Expr> parse_comparison();
+        std::shared_ptr<topologos::ast::Expr> parse_term();
+        std::shared_ptr<topologos::ast::Expr> parse_factor();
+        std::shared_ptr<topologos::ast::Expr> parse_unary();
+        std::shared_ptr<topologos::ast::Expr> parse_primary();
+
+        // --- Helpers ---
         bool match(TokenType type);
-        const Token& consume(TokenType type, const std::string& message);
-
-        // --- 파싱 로직 함수들 ---
-        void parse_community(ProgramNode* program);
-        void parse_statement(ProgramNode* program);
+        bool check(TokenType type) const;
+        Token advance();
+        bool is_at_end() const;
+        Token peek() const;
+        Token previous() const;
+        Token consume(TokenType type, const std::string& message);
     };
-}
+
+} // namespace topologos::parser

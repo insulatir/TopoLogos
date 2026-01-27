@@ -1,69 +1,42 @@
-import json
+import sqlite3
 import os
-import sys
-
-try:
-    from graphviz import Digraph
-except ImportError:
-    print("[Error] Graphviz not installed. Run: pip install graphviz")
-    sys.exit(1)
+from graphviz import Digraph
 
 def visualize_knowledge_graph(db_path, output_filename="knowledge_graph"):
-    """
-    TopoLogos DB(JSON)를 읽어 Graphviz 시각화 파일로 변환합니다.
-    """
-    if not os.path.exists(db_path):
-        print(f"[Error] DB file not found: {db_path}")
-        return
-
-    print(f"[*] Loading Knowledge Graph from: {db_path}")
+    # [변경] SQLite 연결
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
     
-    with open(db_path, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-
-    nodes = data.get("nodes", {})
-    edges = data.get("edges", [])
-
-    if not nodes:
-        print("[Warning] No verified facts found in DB.")
-        return
-
-    # 그래프 초기화 (방향성 그래프)
     dot = Digraph(comment='TopoLogos Knowledge Graph', format='png')
-    dot.attr(rankdir='LR') # 좌우 방향 정렬
-    dot.attr('node', shape='box', style='filled', color='lightblue')
+    dot.attr(rankdir='LR')
+    # [설정] 한글 깨짐 방지
+    dot.attr('node', fontname='NanumGothic') 
 
-    # 1. 노드 추가
-    print(f"[*] Visualizing {len(nodes)} Verified Facts...")
-    for node_id, node_data in nodes.items():
-        score = node_data.get("score", 0)
-        label = f"{node_id}\n(Integrity: {score})"
-        
-        # 점수에 따라 색상 변경 (높을수록 진한 초록)
-        fillcolor = "#e5fffa"
-        if score == 100: fillcolor = "#b2f7ef"
-        
-        dot.node(node_id, label=label, fillcolor=fillcolor)
+    # 1. 노드 가져오기 (SQL)
+    cursor.execute("SELECT id, score FROM nodes")
+    nodes = cursor.fetchall() # 리스트 형태 [(id, score), ...]
+    
+    existing_ids = set()
+    for node_id, score in nodes:
+        existing_ids.add(node_id)
+        label = f"{node_id}\n({int(score)})"
+        color = "#b2f7ef" if score >= 80 else "#ffcccc"
+        dot.node(node_id, label=label, fillcolor=color, style='filled')
 
-    # 2. 엣지(관계) 추가
-    print(f"[*] Mapping {len(edges)} Connections...")
-    for edge in edges:
-        src = edge["from"]
-        dst = edge["to"]
-        relation = edge["relation"]
+    # 2. 엣지 가져오기 (SQL)
+    cursor.execute("SELECT source, target, relation FROM edges")
+    edges = cursor.fetchall()
+    
+    for src, dst, rel in edges:
+        if dst not in existing_ids:
+            dot.node(dst, label=dst, style='dashed')
+        dot.edge(src, dst, label=rel)
         
-        # 외부 의존성(Source) 노드가 DB에 없을 경우 자동 생성 (회색 점선)
-        if dst not in nodes:
-            dot.node(dst, label=dst, shape='ellipse', style='dashed', color='gray')
-            
-        dot.edge(src, dst, label=relation)
-
-    # 3. 렌더링
-    output_path = f"data/{output_filename}"
-    dot.render(output_path, view=False)
-    print(f"[Success] Graph rendered to: {output_path}.png")
+    dot.render(f"data/{output_filename}", cleanup=True)
+    print(f"[Success] Graph rendered to data/{output_filename}.png")
 
 if __name__ == "__main__":
-    # DB 경로 설정 (프로젝트 루트 기준 data/topo_db.json)
-    db_file = os.path.join("data", "topo_db.json")
+    # [변경] 파일명 .sqlite 로 수정
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    db_file = os.path.join(base_dir, "data/topo_db.sqlite")
     visualize_knowledge_graph(db_file)
