@@ -33,11 +33,11 @@ CMD ["./build/TopoLogos", "config/life.topo"]
 FROM base AS miner
 WORKDIR /app
 # 파일 하나를 복사할 때는 파일명을 명시하거나 폴더 경로를 정확히 씁니다.
-COPY tools/miner/miner.py /app/tools/
+COPY tools/miner.py /app/tools/
 RUN mkdir -p /app/data/inbox
 
 # 실행 파일명도 miner.py로 수정
-CMD ["python3", "tools/miner/miner.py", "--daemon", "--rss", "https://techcrunch.com/feed/"]
+CMD ["python3", "tools/miner.py", "--daemon", "--rss", "https://techcrunch.com/feed/"]
 
 # ---------------------------------------------------------
 # 5. Dashboard 타겟
