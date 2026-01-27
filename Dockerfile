@@ -28,27 +28,26 @@ ENV LD_LIBRARY_PATH="/app/external/onnxruntime/lib:${LD_LIBRARY_PATH}"
 CMD ["./build/TopoLogos", "config/life.topo"]
 
 # ---------------------------------------------------------
-# 4. Miner 타겟: 뉴스 수집용 이미지
+# 4. Miner 타겟
 # ---------------------------------------------------------
 FROM base AS miner
 WORKDIR /app
 COPY tools/miner/ /app/tools/miner/
 
-# Miner가 데이터를 저장할 폴더도 미리 만들어둡니다.
+# [수정] COPY 대신 폴더 생성 명령 사용
 RUN mkdir -p /app/data/inbox
 
 CMD ["python3", "tools/miner/miner.py", "--daemon", "--rss", "https://techcrunch.com/feed/"]
+
 # ---------------------------------------------------------
-# 5. Dashboard 타겟: 시각화 웹 이미지
+# 5. Dashboard 타겟
 # ---------------------------------------------------------
 FROM base AS dashboard
 WORKDIR /app
 COPY tools/dashboard/ /app/tools/dashboard/
 
-# [수정] COPY 대신 RUN mkdir를 사용합니다.
-# 로컬에 폴더가 없어도 컨테이너 안에 빈 폴더를 생성해줍니다.
-RUN mkdir -p /app/data
+# [수정] COPY data/ /app/data/ 부분을 아래로 교체
+RUN mkdir -p /app/data/db /app/data/inbox
 
 EXPOSE 5000
-# 경로 주의: app.py가 tools/dashboard 안에 있다면 아래와 같이 실행
 CMD ["python3", "tools/dashboard/app.py"]
