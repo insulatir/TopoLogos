@@ -7,6 +7,7 @@ services:
     container_name: topologos-miner
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY} # 호스트의 환경변수 사용
+      - PYTHONUNBUFFERED=1
     volumes:
       - ./data:/app/data # 데이터 영구 저장 및 공유
     # TechCrunch 피드를 5분(300초)마다 순찰
@@ -33,3 +34,17 @@ services:
       - ./data:/app/data
     command: python3 tools/dashboard.py
     restart: unless-stopped
+
+    # [NEW] 뇌 (Local LLM) 추가
+  brain:
+    image: ollama/ollama:latest
+    container_name: topologos-brain
+    ports:
+      - "11434:11434"  # 뇌와 대화하는 통로
+    volumes:
+      - ollama_data:/root/.ollama # 학습한 모델을 저장하는 영구 기억 장소
+    restart: always
+
+# 1. 아까 추가한 볼륨 (왼쪽 끝에 붙여야 함)
+volumes:
+  ollama_data:

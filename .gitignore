@@ -2,15 +2,19 @@
 build/
 bin/
 lib/
+__pycache__/
 *.o
 *.so
 *.dylib
 *.exe
+*.pyc
 
 # Data & Database (개인적/로컬 데이터는 공유하지 않음)
 data/
 *.topo.json
 topo_db.json
+data/inbox/*.json
+data/db/*.db
 
 # Environment variables & Keys (절대 커밋 금지)
 .env
