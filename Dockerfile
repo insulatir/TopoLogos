@@ -32,11 +32,11 @@ CMD ["./build/TopoLogos", "config/life.topo"]
 # ---------------------------------------------------------
 FROM base AS miner
 WORKDIR /app
-COPY tools/miner/ /app/tools/miner/
-
-# [수정] COPY 대신 폴더 생성 명령 사용
+# 파일 하나를 복사할 때는 파일명을 명시하거나 폴더 경로를 정확히 씁니다.
+COPY tools/miner/miner.py /app/tools/
 RUN mkdir -p /app/data/inbox
 
+# 실행 파일명도 miner.py로 수정
 CMD ["python3", "tools/miner/miner.py", "--daemon", "--rss", "https://techcrunch.com/feed/"]
 
 # ---------------------------------------------------------
@@ -44,10 +44,10 @@ CMD ["python3", "tools/miner/miner.py", "--daemon", "--rss", "https://techcrunch
 # ---------------------------------------------------------
 FROM base AS dashboard
 WORKDIR /app
-COPY tools/dashboard/ /app/tools/dashboard/
-
-# [수정] COPY data/ /app/data/ 부분을 아래로 교체
+# dashboard.py 파일을 컨테이너의 tools 폴더 안으로 복사
+COPY tools/dashboard.py /app/tools/
 RUN mkdir -p /app/data/db /app/data/inbox
 
 EXPOSE 5000
-CMD ["python3", "tools/dashboard/app.py"]
+# 실행 파일명을 dashboard.py로 수정
+CMD ["python3", "tools/dashboard.py"]
