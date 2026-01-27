@@ -1,0 +1,42 @@
+// config/life.topo
+meta {
+    version: "2.0.0"
+    project: "TopoLogos"
+}
+
+domain Physics {
+    axiom Thermodynamics {
+        rule NoFreeLunch(input_energy: float, promised_reward: float) {
+            threshold: 1000.0;
+            condition: promised_reward <= (input_energy * threshold);
+            failure_msg: "Thermodynamics Violation: Infinite Upside detected.";
+        }
+    }
+    axiom Verifiability {
+        rule EntropyCheck(text_clarity_score: float) {
+            threshold: 0.7;
+            condition: text_clarity_score >= threshold;
+            failure_msg: "High Entropy: Vague terminology.";
+        }
+    }
+}
+
+domain Psychology {
+    axiom Intent {
+        rule UrgencyTrap(urgency_keywords_count: int, call_to_action: bool) {
+            max_allowed: 2;
+            condition: !(urgency_keywords_count > max_allowed && call_to_action == true);
+            failure_msg: "Predatory Intent: Urgency trap.";
+        }
+    }
+}
+
+domain Structure {
+    axiom Robustness {
+        rule CentralizationRisk(dependency_sources: list<string>) {
+            min_sources: 1;
+            condition: length(dependency_sources) >= min_sources;
+            failure_msg: "Structural Fragility: SPOF detected.";
+        }
+    }
+}

@@ -1,48 +1,52 @@
 cmake_minimum_required(VERSION 3.20)
-project(TopoLogos VERSION 0.2.0 LANGUAGES CXX) # 버전업!
 
+# 프로젝트 이름 및 버전
+project(TopoLogos VERSION 0.2.0 LANGUAGES CXX)
+
+# C++23 표준 강제
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# 1. ONNX Runtime 경로 설정
-set(ORT_ROOT "${CMAKE_SOURCE_DIR}/external/onnxruntime")
-include_directories(${ORT_ROOT}/include)
+# [의존성 추가] nlohmann_json (JSON 처리를 위해 필수)
+include(FetchContent)
+FetchContent_Declare(
+    json
+    URL https://github.com/nlohmann/json/releases/download/v3.11.2/json.tar.xz
+)
+FetchContent_MakeAvailable(json)
 
-# 2. 헤더 파일 경로 포함
+# 헤더 경로 포함
 include_directories(include)
 
-# 3. 소스 파일 수집
-file(GLOB_RECURSE SOURCES "src/*.cpp")
-
-# 1. 컴파일러 (TopoLogos)
-add_executable(TopoLogos src/main.cpp src/parser/lexer.cpp src/parser/parser.cpp src/codegen/generator.cpp src/ai/engine.cpp)
-target_link_libraries(TopoLogos PRIVATE "${ORT_ROOT}/lib/libonnxruntime.so")
-if(UNIX)
-    target_link_options(TopoLogos PRIVATE "-Wl,-rpath,${ORT_ROOT}/lib")
-endif()
-
-# 2. 애플리케이션 (GraphApp) - [새로 추가!]
-# rag_app.cpp만 컴파일하면 됩니다. (knowledge.hpp는 헤더니까 소스 목록에 안 넣어도 됨)
-add_executable(GraphApp src/rag_app.cpp)
-# GraphApp은 AI 엔진이나 파서가 필요 없습니다. 오직 'knowledge.hpp'만 있으면 됩니다!
-# (이것이 컴파일러 방식의 장점: 런타임이 가볍다)
-
-# 5. [중요] 라이브러리 링킹 (Engine Connection)
-# 리눅스에서는 .so 파일을 직접 링크합니다.
-target_link_libraries(TopoLogos PRIVATE 
-    "${ORT_ROOT}/lib/libonnxruntime.so"
+# 소스 파일 목록 정의
+# (기존 소스 + 새로 만든 bullshit_detector.cpp 추가)
+set(SOURCES
+    src/main.cpp
+    src/verification/bullshit_detector.cpp
+    src/ai/engine.cpp
+    src/parser/parser.cpp
+    src/parser/lexer.cpp
+    src/codegen/generator.cpp
+    # src/rag_app.cpp 는 삭제하거나 제외
 )
 
-# 6. 컴파일 옵션 (엄격 모드 유지)
-if(MSVC)
-    target_compile_options(TopoLogos PRIVATE /W4 /WX)
-else()
-    target_compile_options(TopoLogos PRIVATE -Wall -Wextra) 
-    # -Werror는 잠시 끕니다. 외부 라이브러리 경고 때문에 귀찮을 수 있어서요.
+# 실행 파일 생성
+add_executable(TopoLogos ${SOURCES})
+
+# 2. [핵심 수정] 헤더 파일 경로 추가
+# ${CMAKE_SOURCE_DIR}는 프로젝트 루트 경로를 의미합니다.
+target_include_directories(TopoLogos PRIVATE
+    "${CMAKE_SOURCE_DIR}/include"                        # 내 프로젝트 헤더
+    "${CMAKE_SOURCE_DIR}/external/onnxruntime/include"   # ONNX Runtime 헤더 (이게 없어서 에러 발생)
+)
+
+# 라이브러리 링크 (JSON 및 Thread 등)
+target_link_libraries(TopoLogos PRIVATE
+    "${CMAKE_SOURCE_DIR}/external/onnxruntime/lib/libonnxruntime.so.1.17.1"
+    "nlohmann_json::nlohmann_json")
+
+if(UNIX)
+    target_link_libraries(TopoLogos PRIVATE pthread dl)
 endif()
 
-# 7. 실행 시 라이브러리 찾을 수 있게 설정 (RPATH)
-# 실행 파일(exe)이 라이브러리(.so) 위치를 알게 해줌
-if(UNIX)
-    target_link_options(TopoLogos PRIVATE "-Wl,-rpath,${ORT_ROOT}/lib")
-endif()
+message(STATUS "TopoLogos Configured with Structural Existentialism Modules.")
