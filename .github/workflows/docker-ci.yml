@@ -1,0 +1,38 @@
+name: TopoLogos CI
+
+# 언제 실행할지 결정 (main 브랜치에 push하거나 pull request를 보낼 때)
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. 깃헙 서버로 코드 가져오기
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # 2. Docker Compose 설치 확인 및 환경 설정
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      # 3. 환경변수 더미 파일 생성 (CI 서버에는 .env가 없으므로 필요)
+      - name: Create mock .env
+        run: echo "OPENAI_API_KEY=mock-key-for-ci" > .env
+
+      # 4. 전체 서비스 빌드 테스트 (핵심)
+      - name: Build Docker images
+        run: docker compose build
+
+      # 5. 컨테이너가 정상적으로 올라가는지 잠깐 테스트
+      - name: Up and Test
+        run: |
+          docker compose up -d
+          sleep 10
+          docker ps
+          # 간단하게 Dashboard가 살아있는지 확인 (200 OK)
+          curl -f http://localhost:5000 || exit 1
