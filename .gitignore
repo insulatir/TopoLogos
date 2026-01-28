@@ -29,3 +29,5 @@ external/onnxruntime/
 # knowledge.hpp는 컴파일러가 매번 새로 만드는 파일이므로 제외하는 것이 정석입니다.
 knowledge.hpp
 bert_nli.onnx
+external/
+data/

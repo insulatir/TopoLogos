@@ -45,23 +45,17 @@ COPY --from=builder /app/external/ /app/external/
 ENV LD_LIBRARY_PATH="/app/external/onnxruntime/lib:${LD_LIBRARY_PATH}"
 CMD ["./build/TopoLogos", "config/life.topo"]
 
-# ---------------------------------------------------------
-# 4. Miner 타겟
-# ---------------------------------------------------------
+# Miner 부분 수정
 FROM base AS miner
 WORKDIR /app
-COPY tools/miner.py /app/tools/
-RUN mkdir -p /app/data/inbox
+# [변경] tools/miner 폴더 통째로 복사
+COPY tools/miner /app/tools/miner 
+CMD ["python3", "tools/miner/main.py", "--daemon", "--rss", "https://techcrunch.com/feed/"]
 
-CMD ["python3", "tools/miner.py", "--daemon", "--rss", "https://techcrunch.com/feed/"]
-
-# ---------------------------------------------------------
-# 5. Dashboard 타겟
-# ---------------------------------------------------------
+# Dashboard 부분 수정
 FROM base AS dashboard
 WORKDIR /app
-COPY tools/dashboard.py /app/tools/
-RUN mkdir -p /app/data/db /app/data/inbox
-
+# [변경] tools/dashboard 폴더 통째로 복사
+COPY tools/dashboard /app/tools/dashboard
 EXPOSE 5000
-CMD ["python3", "tools/dashboard.py"]
+CMD ["python3", "tools/dashboard/app.py"]
