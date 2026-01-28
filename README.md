@@ -41,6 +41,7 @@ graph LR
     end
 
     SQLite & Qdrant --> Dashboard[Visual Dashboard]
+```
 
 1. The Senses (Miner)
 Tech: Python, Ollama (Mistral/Llama3)
