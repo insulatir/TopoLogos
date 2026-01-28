@@ -5,8 +5,9 @@
 #include <sqlite3.h>
 #include <nlohmann/json.hpp>
 
-// [New] HTTP Client
+#ifndef CPPHTTPLIB_OPENSSL_SUPPORT
 #define CPPHTTPLIB_OPENSSL_SUPPORT
+#endif
 #include "httplib.h"
 
 namespace topologos::storage {
@@ -26,18 +27,21 @@ namespace topologos::storage {
             if (db_) sqlite3_close(db_);
         }
 
-        void add_verified_node(const json& data, double score, const std::vector<float>& embedding) {
+        void add_verified_node(const json& data, double score, const std::vector<float>& embedding = {}) {
             std::string id = data["meta"]["source_id"];
             
-            // 1. [SQLite] 그래프 관계 저장 (기존 로직 유지)
-            save_graph_structure(data, id);
+            // 1. [Fix] 대시보드용 Node 메타데이터 저장 (SQLite)
+            save_node_sqlite(data, score);
 
-            // 2. [Qdrant] 벡터 및 메타데이터 저장
+            // 2. 그래프 관계 저장 (SQLite)
+            save_graph_structure(data, id);
+            
+            // 3. 의미론적 벡터 저장 (Qdrant)
             if (!embedding.empty()) {
                 save_vector(id, embedding, data, score);
             }
             
-            std::cout << "[DB] Assimilated: " << id << " (SQLite Graph + Qdrant Vector)" << std::endl;
+            std::cout << "[DB] Assimilated: " << id << std::endl;
         }
 
     private:
@@ -45,62 +49,62 @@ namespace topologos::storage {
         sqlite3* db_ = nullptr;
         httplib::Client qdrant_client_;
         const std::string COLLECTION_NAME = "topologos_knowledge";
-        const int VECTOR_SIZE = 768; // BERT base size
+        const int VECTOR_SIZE = 768;
 
-        // --- SQLite Part ---
         void open_sqlite() { sqlite3_open(db_path_.c_str(), &db_); }
         
         void init_sqlite_schema() {
-            // Edge 테이블만 남겨도 되지만, 호환성을 위해 Node 테이블도 유지 (Payload는 중복 저장 선택 사항)
+            // [Fix] nodes 테이블 다시 생성 (dashboard.py 호환성)
             const char* sql = 
+                "CREATE TABLE IF NOT EXISTS nodes (id TEXT PRIMARY KEY, type TEXT, score REAL, payload TEXT);"
                 "CREATE TABLE IF NOT EXISTS edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, relation TEXT);";
             char* err = 0;
             sqlite3_exec(db_, sql, 0, 0, &err);
+            if(err) sqlite3_free(err);
+        }
+
+        // [New] Node 저장 헬퍼 함수
+        void save_node_sqlite(const json& data, double score) {
+            std::string id = data["meta"]["source_id"];
+            std::string type = "VerifiedFact";
+            std::string payload = data.dump();
+            
+            const char* sql = "INSERT OR REPLACE INTO nodes (id, type, score, payload) VALUES (?, ?, ?, ?);";
+            sqlite3_stmt* stmt;
+            if (sqlite3_prepare_v2(db_, sql, -1, &stmt, 0) == SQLITE_OK) {
+                sqlite3_bind_text(stmt, 1, id.c_str(), -1, SQLITE_TRANSIENT);
+                sqlite3_bind_text(stmt, 2, type.c_str(), -1, SQLITE_TRANSIENT);
+                sqlite3_bind_double(stmt, 3, score);
+                sqlite3_bind_text(stmt, 4, payload.c_str(), -1, SQLITE_TRANSIENT);
+                sqlite3_step(stmt);
+                sqlite3_finalize(stmt);
+            }
         }
 
         void save_graph_structure(const json& data, const std::string& id) {
-            // 기존 Edge 삭제 및 재생성
-            execute_sql("DELETE FROM edges WHERE source = '" + id + "';");
-            
+            char* err = 0;
+            std::string del_sql = "DELETE FROM edges WHERE source = '" + id + "';";
+            sqlite3_exec(db_, del_sql.c_str(), 0, 0, &err);
+            if(err) sqlite3_free(err);
+
             if (data["attributes"]["structure"].contains("dependency_sources")) {
-                auto sources = data["attributes"]["structure"]["dependency_sources"];
-                for (const auto& source : sources) {
+                for (const auto& source : data["attributes"]["structure"]["dependency_sources"]) {
                     std::string src_str = source.get<std::string>();
-                    // SQL Injection 방지는 생략됨 (간단 예시), 실제론 Prepared Statement 사용 필수
                     std::string sql = "INSERT INTO edges (source, target, relation) VALUES ('" + id + "', '" + src_str + "', 'DEPENDS_ON');";
-                    execute_sql(sql);
+                    sqlite3_exec(db_, sql.c_str(), 0, 0, &err);
+                    if(err) sqlite3_free(err);
                 }
             }
         }
 
-        void execute_sql(const std::string& sql) {
-            char* err = 0;
-            sqlite3_exec(db_, sql.c_str(), 0, 0, &err);
-            if(err) sqlite3_free(err);
-        }
-
-        // --- Qdrant Part ---
         void init_qdrant_collection() {
-            // 컬렉션 확인 및 생성 (Upsert 방식)
-            // Qdrant REST API: PUT /collections/{name}
-            json payload = {
-                {"vectors", {
-                    {"size", VECTOR_SIZE},
-                    {"distance", "Cosine"}
-                }}
-            };
+            json payload = {{"vectors", {{"size", VECTOR_SIZE}, {"distance", "Cosine"}}}};
             qdrant_client_.Put("/collections/" + COLLECTION_NAME, payload.dump(), "application/json");
         }
 
         void save_vector(const std::string& id, const std::vector<float>& embedding, const json& data, double score) {
-            // Qdrant Point 구조 생성
-            // ID는 정수나 UUID여야 함. 여기서는 문자열 ID를 해싱하여 사용하거나 UUID 생성 필요.
-            // 편의상 문자열 ID의 Hash를 사용하거나 Qdrant의 UUID 지원 기능 활용.
-            
-            // 해시 생성 (임시)
             std::hash<std::string> hasher;
             uint64_t point_id = hasher(id); 
-
             json point = {
                 {"id", point_id},
                 {"vector", embedding},
@@ -111,17 +115,8 @@ namespace topologos::storage {
                     {"timestamp", data["meta"]["timestamp"]}
                 }}
             };
-
-            json batch = {
-                {"points", {point}}
-            };
-
-            // Upsert Points: PUT /collections/{name}/points
-            auto res = qdrant_client_.Put("/collections/" + COLLECTION_NAME + "/points?wait=true", batch.dump(), "application/json");
-            
-            if (!res || res->status != 200) {
-                std::cerr << "[Qdrant Error] Failed to upsert vector: " << (res ? res->body : "Connection failed") << std::endl;
-            }
+            json batch = {{"points", {point}}};
+            qdrant_client_.Put("/collections/" + COLLECTION_NAME + "/points?wait=true", batch.dump(), "application/json");
         }
     };
 }

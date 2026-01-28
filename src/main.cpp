@@ -5,14 +5,14 @@
 #include <filesystem>
 
 // Act 1 Headers
-#include "../include/topologos/parser/lexer.hpp"
-#include "../include/topologos/parser/parser.hpp"
-#include "../include/topologos/codegen/generator.hpp"
-#include "../include/topologos/ai/engine.hpp"
+#include "topologos/parser/lexer.hpp"
+#include "topologos/parser/parser.hpp"
+#include "topologos/codegen/generator.hpp"
+#include "topologos/ai/engine.hpp"
 
 // Act 2 Headers
-#include "../include/topologos/verification/bullshit_detector.hpp"
-#include "../include/topologos/storage/knowledge_graph.hpp" // [New] DB 기능
+#include "topologos/verification/bullshit_detector.hpp"
+#include "topologos/storage/knowledge_graph.hpp"
 
 namespace fs = std::filesystem;
 
@@ -24,41 +24,22 @@ std::string resolve_path(const std::string& path) {
 }
 
 int main(int argc, char* argv[]) {
-    std::cout << "[TopoLogos] Initializing Research Core...\n" << std::endl;
+    std::cout << "[TopoLogos] Initializing Research Core..." << std::endl;
 
-    // 0. 경로 설정 (수정됨)
-    // 규칙, 모델 등은 기존 방식(resolve_path) 유지
     std::string rule_file = (argc > 1) ? argv[1] : resolve_path("config/life.topo");
-    std::string model_path = resolve_path("bert_nli.onnx");
     std::string inbox_path = resolve_path("data/inbox");
-    
-    // [FIX] DB 경로는 '폴더'를 기준으로 잡아야 함
     std::string db_path = "data/topo_db.sqlite"; 
-    if (fs::exists("../data")) { 
-        db_path = "../data/topo_db.sqlite"; 
-    }
-    // [Act 1] AI Engine (Optional)
-    topologos::ai::NLIEngine* engine_ptr = nullptr;
-    // ... (AI 로딩 코드는 동일하므로 생략, 이전 코드 유지 가능하나 깔끔하게 재작성)
-    try {
-        if (fs::exists(model_path)) {
-            topologos::ai::EngineConfig config;
-            config.model_path = model_path;
-            config.vocab_path = resolve_path("vocab.txt");
-            config.threshold = 2.5f; 
-            static topologos::ai::NLIEngine engine(config);
-            engine_ptr = &engine;
-            std::cout << "[System] AI Logical Core Online." << std::endl;
-        }
-    } catch (...) {}
+    if (fs::exists("../data")) db_path = "../data/topo_db.sqlite";
 
+    topologos::ai::NLIEngine* engine_ptr = nullptr;
+    
     // ---------------------------------------------------------
     // [Phase 1] Verification & Persistence
     // ---------------------------------------------------------
-    std::cout << "\n=== [Phase 1] Structural Verification & Assimilation ===\n";
+    std::cout << "\n=== [Phase 1] Structural Verification & Assimilation ===\n" << std::endl;
     
     topologos::verification::BullshitDetector detector(rule_file);
-    topologos::storage::KnowledgeGraph db(db_path, "qdrant", 6333);
+    topologos::storage::KnowledgeGraph db(db_path);
 
     if (fs::exists(inbox_path)) {
         for (const auto& entry : fs::directory_iterator(inbox_path)) {
@@ -67,31 +48,26 @@ int main(int argc, char* argv[]) {
                 try {
                     std::ifstream f(entry.path());
                     nlohmann::json data = nlohmann::json::parse(f);
+                    
+                    // 판별 수행
                     auto verdict = detector.judge(data);
 
-                        // [src/main.cpp] Phase 1 내부 수정
-                        if (verdict.is_truth) {
-                            std::cout << "[TRUTH] -> Generating Embedding & Saving.\n";
-                            
-                            // AI 엔진을 통한 임베딩 추출
-                            std::vector<float> emb = engine_ptr->get_embedding(data["attributes"]["summary"]);
-                            
-                            // DB 저장 (점수와 임베딩 포함)
-                            db.add_verified_node(data, verdict.integrity_score, emb); 
-                        } else {
-                        // [수정] 단순히 Discarded만 출력하지 말고 이유를 보여줌
+                    if (verdict.is_truth) {
+                        std::cout << "[TRUTH] (Score: " << verdict.integrity_score << ") -> Saving.\n";
+                        db.add_verified_node(data, verdict.integrity_score);
+                    } else {
                         std::cout << "[SCAM] Discarded (Score: " << verdict.integrity_score << ")\n";
                         for (const auto& msg : verdict.violations) {
-                            std::cout << "    - " << msg << "\n"; // 위반 사유 출력
+                            std::cout << "    - " << msg << "\n";
                         }
                     }
                 } catch (const std::exception& e) {
-                    std::cerr << "Error: " << e.what() << "\n";
+                    std::cerr << "Error processing file: " << e.what() << "\n";
                 }
             }
         }
     } else {
-        std::cout << "[Info] Inbox directory not found.\n";
+        std::cout << "[Info] Inbox directory not found (" << inbox_path << "). Waiting for Miner...\n";
     }
 
     // ---------------------------------------------------------
@@ -99,7 +75,6 @@ int main(int argc, char* argv[]) {
     // ---------------------------------------------------------
     std::cout << "\n=== [Phase 2] Generating Knowledge Graph (Visualization) ===\n";
     
-    // [FIX] 문법을 Act 2(Domain/Axiom) 형식으로 변경해야 파서가 이해합니다.
     std::string source = 
         "domain TopoLogos { \n"
         "  axiom FilterSystem { \n"
@@ -114,9 +89,8 @@ int main(int argc, char* argv[]) {
     auto program = parser.parse();
 
     if (program) {
-        topologos::codegen::CppGenerator generator(engine_ptr);
-        
-        // [FIX] 이 줄이 빠져 있었습니다! AST를 순회하며 그래프를 생성합니다.
+        // AI 엔진 없이 코드 생성기 초기화
+        topologos::codegen::CppGenerator generator(nullptr); 
         generator.generate(program.get()); 
 
         std::cout << "\n=== 📊 Knowledge Graph (Mermaid) ===\n";

@@ -3,27 +3,24 @@
 #include <memory>
 #include <string>
 #include "token.hpp"
-#include "../ast/node.hpp" // [중요] AST 정의 포함
+// [Fix] 직접 참조
+#include "../ast/node.hpp" 
 
 namespace topologos::parser {
 
     class Parser {
     public:
         explicit Parser(std::vector<Token> tokens);
-
-        // 반환 타입을 shared_ptr<ast::ProgramNode>로 통일
-        std::shared_ptr<topologos::ast::ProgramNode> parse();
+        std::shared_ptr<topologos::ast::Program> parse();
 
     private:
         std::vector<Token> tokens_;
         int current_ = 0;
 
-        // --- Parsing Methods ---
-        std::shared_ptr<topologos::ast::DomainNode> parse_domain();
-        std::shared_ptr<topologos::ast::AxiomNode> parse_axiom();
-        std::shared_ptr<topologos::ast::RuleNode> parse_rule();
+        std::shared_ptr<topologos::ast::Domain> parse_domain();
+        std::shared_ptr<topologos::ast::Axiom> parse_axiom();
+        std::shared_ptr<topologos::ast::Rule> parse_rule();
         
-        // Expression Parsing
         std::shared_ptr<topologos::ast::Expr> parse_expression();
         std::shared_ptr<topologos::ast::Expr> parse_logic_or();
         std::shared_ptr<topologos::ast::Expr> parse_logic_and();
@@ -34,7 +31,6 @@ namespace topologos::parser {
         std::shared_ptr<topologos::ast::Expr> parse_unary();
         std::shared_ptr<topologos::ast::Expr> parse_primary();
 
-        // --- Helpers ---
         bool match(TokenType type);
         bool check(TokenType type) const;
         Token advance();
@@ -44,4 +40,4 @@ namespace topologos::parser {
         Token consume(TokenType type, const std::string& message);
     };
 
-} // namespace topologos::parser
+}

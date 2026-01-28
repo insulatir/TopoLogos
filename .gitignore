@@ -13,8 +13,9 @@ __pycache__/
 data/
 *.topo.json
 topo_db.json
-data/inbox/*.json
-data/db/*.db
+*.db
+*.sqlite
+external/onnxruntime/
 
 # Environment variables & Keys (절대 커밋 금지)
 .env

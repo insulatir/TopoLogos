@@ -11,30 +11,31 @@ import schedule
 
 class TruthMiner:
     def __init__(self):
-        # Local Brain (Ollama) 설정
         self.brain_url = "http://brain:11434/api/generate"
         self.model_name = "mistral"
-        
-        # 중복 체크 장부
         self.seen_urls = set()
         
-        # 시스템 프롬프트 (분석 가이드라인)
+        # [FIX] 시스템 프롬프트 대폭 강화: 엔진이 요구하는 모든 필드를 명시
         self.system_prompt = (
-            "You are TopoLogos Sentinel. Analyze news text and extract facts. "
-            "Return ONLY a JSON object with: {'summary': '...', 'score': 0-100, "
-            "'structure': {'dependency_sources': []}}"
+            "You are TopoLogos Sentinel. Analyze the news text and extract structured facts. "
+            "Return ONLY a JSON object with the following fields (no markdown, no explanations):\n"
+            "{\n"
+            "  'summary': 'Concise summary of the event',\n"
+            "  'text_clarity_score': (float 0.0-1.0, 1.0 is very clear, 0.0 is jargon salad),\n"
+            "  'urgency_keywords_count': (int, count words like 'hurry', 'limited time', 'act now'),\n"
+            "  'call_to_action': (bool, true if it tries to sell or force an action),\n"
+            "  'input_energy': (float, implied cost/effort, baseline 1.0),\n"
+            "  'promised_reward': (float, implied benefit/return, baseline 1.0),\n"
+            "  'structure': {'dependency_sources': ['extract', 'all', 'URLs']}\n"
+            "}"
         )
         
         self.load_history()
-        print("[*] TruthMiner Initialized with Local Brain (Mistral).")
+        print("[*] TruthMiner Initialized with Enhanced Vision.")
 
     def analyze_content(self, text):
-        """로컬 LLM(Ollama)에게 분석을 요청합니다."""
-        # 시스템 프롬프트와 본문을 결합
         full_prompt = f"{self.system_prompt}\n\nText to analyze:\n{text}"
-        
-        # flush=True를 넣어야 로그가 즉시 찍힙니다.
-        print(f"🧠 Asking Local Brain (Mistral)... (본문 길이: {len(text)})", flush=True)
+        print(f"🧠 Asking Brain... (Len: {len(text)})", flush=True)
 
         payload = {
             "model": self.model_name,
@@ -44,17 +45,12 @@ class TruthMiner:
         }
         
         try:
-            print(f"🧠 Asking Local Brain (Mistral)...")
             response = requests.post(self.brain_url, json=payload, timeout=600)
             response.raise_for_status()
-            print(f"✅ Brain responded successfully!", flush=True)
             result = response.json()
             return result['response']
-        except requests.exceptions.Timeout:
-            print(f"💀 Brain is too slow! Timeout occurred.", flush=True)
-            return None
         except Exception as e:
-            print(f"[!] Error: {e}", flush=True)
+            print(f"[!] Brain Error: {e}", flush=True)
             return None
 
     def load_history(self):
@@ -65,7 +61,7 @@ class TruthMiner:
                     self.seen_urls.add(f.replace(".topo.json", ""))
 
     def fetch_url(self, url: str) -> str:
-        print(f"[*] Crawling URL: {url} ...")
+        # (이전과 동일)
         try:
             headers = {'User-Agent': 'TopoLogos/3.0'}
             resp = requests.get(url, headers=headers, timeout=10)
@@ -75,100 +71,72 @@ class TruthMiner:
                 script.extract()
             text = soup.get_text(separator=' ')
             return ' '.join(text.split())[:5000]
-        except Exception as e:
-            print(f"[!] Crawling Failed: {e}")
+        except Exception:
             return ""
 
-    def mine(self, raw_text: str, source_id: str, depth: int = 0, max_depth: int = 1):
+    def mine(self, raw_text: str, source_id: str):
         if not raw_text: return
         safe_id = "".join([c for c in source_id if c.isalnum() or c in ('_','-')])
         
         if safe_id in self.seen_urls:
-            print(f"[-] Skipping known source: {safe_id}")
             return
         
-        print(f"[*] Mining Truth ({depth}/{max_depth}): {source_id}")
-        
+        print(f"[*] Mining Truth: {source_id}")
         content = self.analyze_content(raw_text)
         if not content: return
 
         try:
-            # 1. 정규식에 괄호 () 를 추가하여 그룹 1을 만듭니다.
-            import re
-            json_match = re.search(r'(\{.*\})', content, re.DOTALL)
+            # JSON 파싱 강화
+            cleaned = content.strip()
+            # 마크다운 코드 블록 제거 (혹시 몰라서)
+            if cleaned.startswith("```json"): cleaned = cleaned[7:]
+            if cleaned.endswith("```"): cleaned = cleaned[:-3]
             
-            if json_match:
-                # 괄호로 감싼 부분(그룹 1)을 추출합니다.
-                analysis_result = json.loads(json_match.group(1))
-            else:
-                # 정규식 매칭이 안 되면 전체 내용으로 시도합니다.
-                analysis_result = json.loads(content)
+            analysis_result = json.loads(cleaned)
             
             topo_data = {
                 "meta": {
                     "source_id": safe_id,
                     "timestamp": datetime.now().isoformat(),
-                    "miner_model": self.model_name,
-                    "depth": depth
+                    "miner_model": self.model_name
                 },
                 "attributes": analysis_result
             }
             
-            # 경로 설정: Docker 환경에 맞게 조정 (data/inbox)
-            output_dir = "data/inbox" 
+            output_dir = "data/inbox"
             os.makedirs(output_dir, exist_ok=True)
-            filename = os.path.join(output_dir, f"{safe_id}.topo.json")
-            
-            with open(filename, 'w', encoding='utf-8') as f:
+            with open(f"{output_dir}/{safe_id}.topo.json", 'w', encoding='utf-8') as f:
                 json.dump(topo_data, f, indent=4, ensure_ascii=False)
             
             self.seen_urls.add(safe_id)
-            print(f"[+] Materialized: {filename}")
-
-            # 재귀적 크롤링
-            if depth < max_depth:
-                sources = analysis_result.get("structure", {}).get("dependency_sources", [])
-                for src in sources:
-                    if re.match(r'https?://', src):
-                        child_text = self.fetch_url(src)
-                        child_id = f"{safe_id}_ref_{abs(hash(src)) % 10000}"
-                        self.mine(child_text, child_id, depth + 1, max_depth)    
+            print(f"[+] Materialized: {safe_id}")
 
         except Exception as e:
-            print(f"[!] 데이터 처리 실패: {e}")
-            # 에러 로그를 좀 더 자세히 보고 싶다면 아래 주석 해제
-            # import traceback; traceback.print_exc()
+            print(f"[!] Parsing Failed: {e}")
 
     def scan_rss(self, rss_url: str):
         print(f"\n[Scheduler] Scanning Feed: {rss_url}")
-        d = feedparser.parse(rss_url)
-        for entry in d.entries[:3]:
-            title_id = f"rss_{entry.title[:20].replace(' ', '_')}"
-            # 중복 체크
-            if title_id in self.seen_urls:
-                continue
-            content = self.fetch_url(entry.link)
-            self.mine(content, title_id)
+        try:
+            d = feedparser.parse(rss_url)
+            for entry in d.entries[:3]:
+                title_id = f"rss_{entry.title[:20].replace(' ', '_')}"
+                if title_id in self.seen_urls: continue
+                content = self.fetch_url(entry.link)
+                self.mine(content, title_id)
+        except Exception as e:
+            print(f"[!] RSS Error: {e}")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="TopoLogos Autonomous Miner")
-    parser.add_argument("--rss", type=str, help="RSS Feed URL to monitor")
-    parser.add_argument("--daemon", action="store_true", help="Run in continuous loop mode")
-    parser.add_argument("--interval", type=int, default=300, help="Interval (sec)")
-    parser.add_argument("--url", type=str)
-    
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--rss", type=str)
+    parser.add_argument("--daemon", action="store_true")
+    parser.add_argument("--interval", type=int, default=300)
     args = parser.parse_args()
+    
     miner = TruthMiner()
-
     if args.daemon and args.rss:
-        print(f"[*] Starting TopoLogos Sentinel Daemon.")
         miner.scan_rss(args.rss)
         schedule.every(args.interval).seconds.do(miner.scan_rss, args.rss)
         while True:
             schedule.run_pending()
             time.sleep(1)
-    elif args.url:
-        content = miner.fetch_url(args.url)
-        miner.mine(content, f"manual_{int(time.time())}")
-    elif args.rss:
-        miner.scan_rss(args.rss)
