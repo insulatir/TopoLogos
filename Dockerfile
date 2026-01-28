@@ -12,7 +12,7 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 
 # 2. Builder 스테이지: C++ 빌드 전용 (이미지 크기 최적화를 위해 나중에 버려짐)
 FROM base AS builder
-RUN apt-get update && apt-get install -y build-essential cmake git libsqlite3-dev
+RUN apt-get update && apt-get install -y build-essential cmake git libsqlite3-dev libssl-dev
 COPY . .
 RUN mkdir -p build && cd build && cmake .. && make
 

@@ -58,7 +58,7 @@ int main(int argc, char* argv[]) {
     std::cout << "\n=== [Phase 1] Structural Verification & Assimilation ===\n";
     
     topologos::verification::BullshitDetector detector(rule_file);
-    topologos::storage::KnowledgeGraph db(db_path); // [New] DB 로드
+    topologos::storage::KnowledgeGraph db(db_path, "qdrant", 6333);
 
     if (fs::exists(inbox_path)) {
         for (const auto& entry : fs::directory_iterator(inbox_path)) {
@@ -69,10 +69,16 @@ int main(int argc, char* argv[]) {
                     nlohmann::json data = nlohmann::json::parse(f);
                     auto verdict = detector.judge(data);
 
-                    if (verdict.is_truth) {
-                        std::cout << "[TRUTH] (Score: " << verdict.integrity_score << ") -> Saving.\n";
-                        db.add_verified_node(data, verdict.integrity_score);
-                    } else {
+                        // [src/main.cpp] Phase 1 내부 수정
+                        if (verdict.is_truth) {
+                            std::cout << "[TRUTH] -> Generating Embedding & Saving.\n";
+                            
+                            // AI 엔진을 통한 임베딩 추출
+                            std::vector<float> emb = engine_ptr->get_embedding(data["attributes"]["summary"]);
+                            
+                            // DB 저장 (점수와 임베딩 포함)
+                            db.add_verified_node(data, verdict.integrity_score, emb); 
+                        } else {
                         // [수정] 단순히 Discarded만 출력하지 말고 이유를 보여줌
                         std::cout << "[SCAM] Discarded (Score: " << verdict.integrity_score << ")\n";
                         for (const auto& msg : verdict.violations) {

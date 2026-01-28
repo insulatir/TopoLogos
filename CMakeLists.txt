@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(SQLite3 REQUIRED)
+find_package(OpenSSL REQUIRED) # [FIX] OpenSSL 필수 지정
 
 # [의존성 추가] nlohmann_json (JSON 처리를 위해 필수)
 include(FetchContent)
@@ -40,13 +41,25 @@ add_executable(TopoLogos ${SOURCES})
 target_include_directories(TopoLogos PRIVATE
     "${CMAKE_SOURCE_DIR}/include"                        # 내 프로젝트 헤더
     "${CMAKE_SOURCE_DIR}/external/onnxruntime/include"   # ONNX Runtime 헤더 (이게 없어서 에러 발생)
+    ${httplib_SOURCE_DIR}
 )
 
-# 라이브러리 링크 (JSON 및 Thread 등)
+# 5. [FIX] 라이브러리 링크 (OpenSSL 및 httplib 추가)
 target_link_libraries(TopoLogos PRIVATE
     "${CMAKE_SOURCE_DIR}/external/onnxruntime/lib/libonnxruntime.so.1.17.1"
-    "nlohmann_json::nlohmann_json"
-    "SQLite::SQLite3")
+    nlohmann_json::nlohmann_json
+    SQLite::SQLite3
+    httplib::httplib     # HTTP 클라이언트
+    OpenSSL::SSL         # SSL 암호화
+    OpenSSL::Crypto      # 암호화 알고리즘
+)
+
+# [New] cpp-httplib (REST API 통신용)
+FetchContent_Declare(
+    httplib
+    URL https://github.com/yhirose/cpp-httplib/archive/refs/tags/v0.15.3.tar.gz
+)
+FetchContent_MakeAvailable(httplib)
 
 if(UNIX)
     target_link_libraries(TopoLogos PRIVATE pthread dl)

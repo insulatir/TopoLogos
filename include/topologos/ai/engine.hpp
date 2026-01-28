@@ -29,6 +29,9 @@ namespace topologos::ai {
         // 문장을 받아 논리적 관계 판단 (내부에서 전처리 수행)
         auto predict(const std::string& premise, const std::string& hypothesis) -> LogicResult;
 
+        // [New] 임베딩 추출 기능 추가
+        std::vector<float> get_embedding(const std::string& text);
+
     private:
         EngineConfig config_; // 설정 저장
 
