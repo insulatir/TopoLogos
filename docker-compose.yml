@@ -11,9 +11,9 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - PYTHONUNBUFFERED=1
     volumes:
-      - ./data:/app/data
+      - ./data:/app/data/inbox
     # [FIX] 경로 수정: tools/miner/miner.py -> tools/miner.py
-    command: python3 tools/miner.py --daemon --rss "https://techcrunch.com/feed/" --interval 300
+    command: python3 tools/miner/main.py --daemon --rss "https://techcrunch.com/feed/" --interval 300
     restart: unless-stopped
     depends_on:
       - brain
@@ -45,7 +45,7 @@ services:
     volumes:
       - ./data:/app/data
     # [FIX] 경로 수정
-    command: python3 tools/dashboard.py
+    command: python3 tools/dashboard/app.py
     restart: unless-stopped
 
   # [Service 4] AI Brain (Ollama)

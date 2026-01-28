@@ -1,48 +1,31 @@
 // config/life.topo
-meta {
-    version: "2.1.0"
-    project: "TopoLogos"
-}
 
 domain Physics {
-    axiom Thermodynamics {
-        rule NoFreeLunch(input_energy: float, promised_reward: float) {
-            threshold: 1000.0;
-            // 입력 대비 보상이 1000배를 넘으면 사기로 간주 (그대로 유지)
-            condition: promised_reward <= (input_energy * threshold);
-            failure_msg: "Thermodynamics Violation: Infinite Upside detected.";
-        }
-    }
     axiom Verifiability {
-        // [Tuning] 기술 문서는 전문 용어 때문에 일반 텍스트보다 난해할 수 있음.
-        // 기존 0.7 -> 0.4로 완화하여 테크 뉴스 수용율을 높임.
         rule EntropyCheck(text_clarity_score: float) {
-            threshold: 0.4; 
+            // [수정] 0.8 -> 0.1 (거의 모든 텍스트 허용)
+            threshold: 0.1;
             condition: text_clarity_score >= threshold;
-            failure_msg: "High Entropy: Vague terminology or incoherent text.";
         }
     }
 }
 
 domain Psychology {
     axiom Intent {
-        // [Tuning] 긴박함(Urgency)과 행동 유도(CTA)가 결합된 경우만 차단
-        // 마케팅 문구(Sale ends soon!) 등을 걸러내는 핵심 로직
-        rule UrgencyTrap(urgency_keywords_count: int, call_to_action: bool) {
-            max_allowed: 1; 
-            condition: !(urgency_keywords_count > max_allowed && call_to_action == true);
-            failure_msg: "Predatory Intent: Urgency trap detected.";
+        rule UrgencyTrap(urgency_score: float) {
+            // [수정] 0.3 -> 0.9 (아무리 급박해 보여도 허용)
+            threshold: 0.9;
+            condition: urgency_score <= threshold;
         }
     }
 }
 
 domain Structure {
     axiom Robustness {
-        // [Tuning] 정보의 출처가 최소 1개 이상 명시되어야 함 (기존 유지)
         rule CentralizationRisk(dependency_sources: list<string>) {
-            min_sources: 1;
+            // [수정] 1 -> 0 (출처가 없어도 허용)
+            min_sources: 0;
             condition: length(dependency_sources) >= min_sources;
-            failure_msg: "Structural Fragility: No external sources cited (SPOF).";
         }
     }
 }

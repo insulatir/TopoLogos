@@ -6,11 +6,24 @@ from flask import Flask, jsonify, render_template_string
 
 app = Flask(__name__)
 
-# DB 경로 설정
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# 1. 현재 파일의 절대 경로
+CURRENT_FILE = os.path.abspath(__file__)
+
+# 2. 프로젝트 루트 찾기 (3단계 상위 폴더로 이동)
+# dashboard -> tools -> app(루트)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(CURRENT_FILE)))
+
+# 3. DB 경로 결합
 DB_PATH = os.path.join(BASE_DIR, "data/topo_db.sqlite")
 
+# [디버깅용] 로그 출력 (도커 로그에서 확인 가능)
+print(f"[*] Dashboard Database Path: {DB_PATH}")
+
 def get_db_connection():
+    # 혹시 폴더가 없으면 에러가 나므로 체크
+    if not os.path.exists(os.path.dirname(DB_PATH)):
+        os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+        
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
